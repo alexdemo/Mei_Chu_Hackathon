@@ -27,7 +27,8 @@
         android:orientation="vertical"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
         tools:context=".MainActivity"
-        tools:showIn="@layout/activity_main">
+        tools:showIn="@layout/activity_main"
+        android:weightSum="1">
 
 
         <ImageView
@@ -35,7 +36,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
-            android:src="@mipmap/ic_launcher" />
+            android:src="@mipmap/ic_launcher"
+            android:layout_weight="0.3" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -48,13 +50,16 @@
                 android:id="@+id/textView"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="帳號：" />
+                android:text="帳號："
+                android:textSize="18dp"
+                android:paddingLeft="40dp" />
 
             <EditText
                 android:id="@+id/editTextAccount"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="0.70" />
+                android:text="skyle0115@gmail.com"
+                android:layout_weight="0.4" />
 
         </LinearLayout>
 
@@ -62,20 +67,25 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:weightSum="1">
 
             <TextView
                 android:id="@+id/textView2"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="密碼：" />
+                android:text="密碼："
+                android:textSize="18dp"
+                android:paddingLeft="40dp" />
 
             <EditText
-                android:id="@+id/editTextAccountPassword"
+                android:id="@+id/editTextPassword"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:ems="10"
-                android:inputType="textPassword" />
+                android:inputType="textPassword"
+                android:text="H07-jhsa"
+                android:layout_weight="0.4" />
 
         </LinearLayout>
 
