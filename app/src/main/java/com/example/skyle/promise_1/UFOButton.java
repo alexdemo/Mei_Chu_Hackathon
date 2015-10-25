@@ -8,6 +8,7 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -31,6 +32,7 @@ import android.widget.ListPopupWindow;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +52,11 @@ public class UFOButton extends Service {
     int PrevX;
     int PrevY;
     boolean ismoving;
+
+    List<Long> startTimes = new ArrayList<>();
+    List<Long> stopTimes = new  ArrayList<>();
+    List<String> names = new  ArrayList<>();
+
 
     HashMap<String,String> item  = new HashMap<>();
     List<Map<String,String>> items = new ArrayList<>();
@@ -77,6 +84,8 @@ public class UFOButton extends Service {
 //        listCity.add(item);
 //        item.put("text","photo");
 //        listCity.add(item);
+
+
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
         chatHead = new ImageButton(this);
@@ -169,6 +178,25 @@ public class UFOButton extends Service {
 
     }
 
+    private class MyReceiver extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context arg0, Intent arg1) {
+            // TODO Auto-generated method stub
+
+            long[] time = arg1.getExtras().getLongArray("time");
+            String name = arg1.getStringExtra("name");
+            //long timestamp = arg1.getLongExtra("timestamp", 0);
+            //long curtime = System.currentTimeMillis();
+            //long delay = curtime - timestamp;
+//            Toast.makeText(UFOButton.this, "ya\n" + new Date(time[0]).toString() + "\n" + new Date(time[1]).toString() + "\n" + name, Toast.LENGTH_SHORT).show();
+            /*Log.i("aaa", String.valueOf(timestamp)
+                    + " : " + String.valueOf(curtime)
+                    + " delay " + String.valueOf(delay)
+                    + "(ms)");*/
+        }
+
+    }
     private void initiatePopupWindow(View anchor) {
         try {
 
@@ -286,6 +314,10 @@ public class UFOButton extends Service {
     public long[] stop(){
 
         stopTime = System.currentTimeMillis();
+        startTimes.add(startTime);
+        stopTimes.add(stopTime);
+
+
         iscase1enable = false;
         Toast.makeText(UFOButton.this, "2total time:" + (stopTime - startTime), Toast.LENGTH_SHORT).show();
 
@@ -300,14 +332,23 @@ public class UFOButton extends Service {
         category.setTitle("test").setPositiveButton("OK", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
+
+                //Click event
+
                 category_text = editText.getText().toString();
-                Intent intent = new Intent();
-                long[] ret = {startTime,stopTime};
-                intent.putExtra("time",ret);
-                intent.putExtra("name",category_text);
-                intent.setAction(MY_ACTION);
-                sendBroadcast(intent);
+
+                names.add(category_text); //add in
+//
+//                Intent intent = new Intent();
+//                long[] ret = {startTime,stopTime};
+//                intent.putExtra("time",ret);
+//                intent.putExtra("name",category_text);
+//                intent.setAction(MY_ACTION);
+//                sendBroadcast(intent);
                 Log.i("tag","hi");
+
+
+
             }
         }).create();
         AlertDialog alert = category.create();
