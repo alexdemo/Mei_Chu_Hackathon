@@ -8,12 +8,17 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.PixelFormat;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
 import android.util.Log;
 import android.view.Display;
 import android.view.Gravity;
@@ -30,46 +35,117 @@ import android.widget.ImageView;
 import android.widget.ListPopupWindow;
 import android.widget.Toast;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import java.util.logging.LogRecord;
 
 /**
  * Created by plaslab on 2015/10/24.
  */
 public class UFOButton extends Service {
 
-    final static String MY_ACTION = "testActivity.MY_ACTION";
+    final static String MY_ACTION = "testService.MY_ACTION";
 
+    Handler handler ;
     private WindowManager windowManager;
     private ImageView chatHead;
-    private long startTime,stopTime;
-    boolean iscase1enable=false;
+    private long startTime, stopTime;
+    boolean iscase1enable = false;
     String category_text = "";
+
     int PrevX;
     int PrevY;
     boolean ismoving;
 
-    HashMap<String,String> item  = new HashMap<>();
-    List<Map<String,String>> items = new ArrayList<>();
-    List listCity = new ArrayList();;
+    List<Long> startTimes = new ArrayList<>();
+    List<Long> stopTimes = new ArrayList<>();
+    List<String> names = new ArrayList<>();
+
+
+    HashMap<String, String> item = new HashMap<>();
+    List<Map<String, String>> items = new ArrayList<>();
+    List listCity = new ArrayList();
+    ;
 
     @Override
     public IBinder onBind(Intent intent) {
         // Not used
         int get = intent.getIntExtra("caceled", 1);
-        Log.d("onBind",get+"");
+        Log.d("onBind", get + "");
         return null;
     }
+
+    List<File> files;
+
+    private List<File> getListFiles(File parentDir, Date start, Date end) {
+        ArrayList<File> inFiles = new ArrayList<>();
+        File[] files = parentDir.listFiles();
+        for (File file : files) {
+            if (file.isDirectory()) {
+                inFiles.addAll(getListFiles(file, start, end));
+            } else {
+                Date d = new Date(file.lastModified());
+                if (file.getName().endsWith(".jpg") && d.after(start) && d.before(end)) {
+                    inFiles.add(file);
+                    //Log.i("Tag", file.getPath());
+                    //Log.i("Tag", d.toString());
+                    //Log.i("Tag", start.toString());
+                }
+            }
+        }
+        return inFiles;
+    }
+
+    String token = "";
 
     @Override
     public void onCreate() {
         super.onCreate();
+        handler = new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                super.handleMessage(msg);
+                switch (msg.what){
+                    case 0 :
+                        Toast.makeText(UFOButton.this, msg.arg1 + " files uploaded.", Toast.LENGTH_SHORT).show();
 
-        listCity.add("start");
-        listCity.add("stop");
-        listCity.add("photo");
+                        break;
+                    case 1 :
+                        final int notifyID = 1;
+
+                        final Intent intent = new Intent().setClass(getApplicationContext(), UFOButton.class);
+                        int flags = PendingIntent.FLAG_CANCEL_CURRENT;
+                        final PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), 0, intent, flags); // ??PendingIntent
+
+                        final Intent cancelIntent = new Intent(getApplicationContext(), CancelNotificationReceiver.class); // ??????Intent
+                        cancelIntent.putExtra("cancel_notify_id", notifyID);
+                        flags = PendingIntent.FLAG_ONE_SHOT;
+                        final PendingIntent pendingCancelIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, cancelIntent, flags); // ??PendingIntent
+
+                        final NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE); // ?????????
+                        final Notification notification = new Notification.Builder(getApplicationContext()).
+                                setSmallIcon(R.drawable.ic_camera_enhance_white_48dp).
+                                setContentTitle("一拍即分").
+                                setContentText("執行中").
+                                build();
+                        notification.flags = Notification.FLAG_NO_CLEAR;
+                        notificationManager.notify(notifyID, notification);
+                    default:
+                }
+            }
+        };
+        listCity.add("開始");
+        listCity.add("結束");
+        listCity.add("相機");
+        listCity.add("雲端");
+        listCity.add("退出");
+
+        testServiceReceiver = new TestServiceReceiver();
 
 //        item.put("text", "Start");
 //        listCity.add(item);
@@ -77,6 +153,50 @@ public class UFOButton extends Service {
 //        listCity.add(item);
 //        item.put("text","photo");
 //        listCity.add(item);
+
+
+        new Thread() {
+            @Override
+            public void run() {
+                while (true) {
+//                    List<Long> startTimes = new ArrayList<>();
+//                    List<Long> stopTimes = new ArrayList<>();
+//                    List<String> names = new ArrayList<>();
+
+                    if (names.size() > 0 && token != "") {
+                        /*
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        */
+                        files = getListFiles(new File("/sdcard/DCIM/"), new Date(startTimes.get(0)), new Date(stopTimes.get(0)));
+                        Log.i("tag", "ya");
+                        final String dir = "/" + names.get(0) + "/";
+                        startTimes.remove(0);
+                        stopTimes.remove(0);
+                        names.remove(0);
+//                        files = getListFiles(new File("/sdcard/DCIM/"), String2Date("2015-10-20 15:25:00"), String2Date("2015-10-29 00:00:00"));
+                        for(int i = 0; i < files.size(); i++){
+                            Promise p = new Promise(dir + files.get(i).getName(), token);
+                            p.Request(p.File2byteArray(files.get(i).getPath()));
+                            //Log.i("tag", "" + p.getResponseCode());
+                            Log.i("tag", "" + p.Response());
+                            p.Disconnect();
+                        }
+                        Message msg = new Message();
+                        msg.what=0;
+                        msg.arg1=files.size();
+                        handler.sendMessage(msg);
+                        //Toast.makeText(UFOButton.this, files.size() + " 個檔案已上傳完成", Toast.LENGTH_SHORT).show();
+                    }
+
+                }
+            }
+        }.start();
+
+
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
         chatHead = new ImageButton(this);
@@ -99,74 +219,82 @@ public class UFOButton extends Service {
 
         try {
 
-        chatHead.setOnTouchListener(new View.OnTouchListener() {
-            private int initialX;
-            private int initialY;
-            private float initialTouchX;
-            private float initialTouchY;
+            chatHead.setOnTouchListener(new View.OnTouchListener() {
+                private int initialX;
+                private int initialY;
+                private float initialTouchX;
+                private float initialTouchY;
 
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                ValueAnimator animator1 = ObjectAnimator.ofFloat(v, "scaleX", 1.2f, 1.0f);
-                ValueAnimator animator2 = ObjectAnimator.ofFloat(v, "scaleY", 1.2f, 1.0f);
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    ValueAnimator animator1 = ObjectAnimator.ofFloat(v, "scaleX", 1.2f, 1.0f);
+                    ValueAnimator animator2 = ObjectAnimator.ofFloat(v, "scaleY", 1.2f, 1.0f);
 
-                AnimatorSet animatorSet = new AnimatorSet();
-                animatorSet.playTogether(animator1, animator2);
-                animatorSet.setDuration(250);
-                animatorSet.setInterpolator(new OvershootInterpolator());
-                //animatorSet.setInterpolator(new BounceInterpolator());
-                animatorSet.start();
+                    AnimatorSet animatorSet = new AnimatorSet();
+                    animatorSet.playTogether(animator1, animator2);
+                    animatorSet.setDuration(250);
+                    animatorSet.setInterpolator(new OvershootInterpolator());
+                    //animatorSet.setInterpolator(new BounceInterpolator());
+                    animatorSet.start();
 
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
 
-                        ismoving = false;
+                            ismoving = false;
 
-                        initialX = params.x;
-                        initialY = params.y;
+                            initialX = params.x;
+                            initialY = params.y;
 
-                        initialTouchX = event.getRawX();
-                        initialTouchY = event.getRawY();
+                            initialTouchX = event.getRawX();
+                            initialTouchY = event.getRawY();
 
 
-                        PrevX = initialX;
-                        PrevY = initialY;
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        params.x = initialX
-                                + (int) (event.getRawX() - initialTouchX);
-                        params.y = initialY
-                                + (int) (event.getRawY() - initialTouchY);
+                            PrevX = initialX;
+                            PrevY = initialY;
+                            return true;
+                        case MotionEvent.ACTION_UP:
+                            params.x = initialX
+                                    + (int) (event.getRawX() - initialTouchX);
+                            params.y = initialY
+                                    + (int) (event.getRawY() - initialTouchY);
 
-                        if (Math.abs(PrevX - params.x)<=10 && Math.abs(PrevY - params.y) <= 10)
-                            initiatePopupWindow(chatHead);
-                        Log.d("TAG","x: "+params.x+"y: "+params.y+"Prevx: "+PrevX+"Prevy: "+PrevY);
-                        PrevX = initialX;
-                        PrevY = initialY;
-                        return true;
-                    case MotionEvent.ACTION_MOVE:
+                            if (Math.abs(PrevX - params.x) <= 10 && Math.abs(PrevY - params.y) <= 10)
+                                initiatePopupWindow(chatHead);
+                            Log.d("TAG", "x: " + params.x + "y: " + params.y + "Prevx: " + PrevX + "Prevy: " + PrevY);
+                            PrevX = initialX;
+                            PrevY = initialY;
+                            return true;
+                        case MotionEvent.ACTION_MOVE:
 
-                        params.x = initialX
-                                + (int) (event.getRawX() - initialTouchX);
-                        params.y = initialY
-                                + (int) (event.getRawY() - initialTouchY);
+                            params.x = initialX
+                                    + (int) (event.getRawX() - initialTouchX);
+                            params.y = initialY
+                                    + (int) (event.getRawY() - initialTouchY);
 
                             windowManager.updateViewLayout(chatHead, params);
 
 
                             ismoving = true;
-                            Log.d("TAG","x: "+params.x+"y: "+params.y);
-                        return true;
+                            Log.d("TAG", "x: " + params.x + "y: " + params.y);
+                            return true;
 
+                    }
+                    return false;
                 }
-                return false;
-            }
-        });
+            });
 
-        }catch (Exception e ){
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
+    }
+
+    private static final int dpToPx(int dp) {
+        return (int) (dp * Resources.getSystem().getDisplayMetrics().density);
+    }
+
+    private static final int pxToDp(int px) {
+        return (int) (px / Resources.getSystem().getDisplayMetrics().density);
     }
 
     private void initiatePopupWindow(View anchor) {
@@ -178,8 +306,8 @@ public class UFOButton extends Service {
             ListPopupWindow popup = new ListPopupWindow(this);
             popup.setAnchorView(anchor);
 
-//            popup.setWidth((int) (display.getWidth() / (1.5)));
-            popup.setVerticalOffset(200);
+            //popup.setWidth(dpToPx(80));
+            popup.setVerticalOffset(0);
             //ArrayAdapter<String> arrayAdapter =
             //new ArrayAdapter<String>(this,R.layout.list_item, myArray);
 
@@ -192,85 +320,97 @@ public class UFOButton extends Service {
 //                    new int[]{R.id.text1});
 //
 //            popup.setAdapter(simpleAdapter);
-                    popup.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            popup.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
-                        @Override
-                        public void onItemClick(AdapterView<?> arg0, View view, int position, long id3) {
-                            ValueAnimator animator1 = ObjectAnimator.ofFloat(view, "scaleX", 1.2f, 1.0f);
-                            ValueAnimator animator2 = ObjectAnimator.ofFloat(view, "scaleY", 1.2f, 1.0f);
+                @Override
+                public void onItemClick(AdapterView<?> arg0, View view, int position, long id3) {
+                    ValueAnimator animator1 = ObjectAnimator.ofFloat(view, "scaleX", 1.2f, 1.0f);
+                    ValueAnimator animator2 = ObjectAnimator.ofFloat(view, "scaleY", 1.2f, 1.0f);
 
-                            AnimatorSet animatorSet = new AnimatorSet();
-                            animatorSet.playTogether(animator1, animator2);
-                            animatorSet.setDuration(250);
-                            animatorSet.setInterpolator(new OvershootInterpolator());
-                            //animatorSet.setInterpolator(new BounceInterpolator());
-                            animatorSet.start();
+                    AnimatorSet animatorSet = new AnimatorSet();
+                    animatorSet.playTogether(animator1, animator2);
+                    animatorSet.setDuration(250);
+                    animatorSet.setInterpolator(new OvershootInterpolator());
+                    //animatorSet.setInterpolator(new BounceInterpolator());
+                    animatorSet.start();
 
-                            Toast.makeText(UFOButton.this, "" + position + ": " + listCity.get(position), Toast.LENGTH_SHORT).show();
+//                    Toast.makeText(UFOButton.this, "" + position + ": " + listCity.get(position), Toast.LENGTH_SHORT).show();
 
 
-                            switch (position) {
-                                case 0:
-                                    //start
-                                    final int notifyID = 1;
+                    switch (position) {
+                        case 0:
+                            handler.sendEmptyMessage(1);
+                            //start
+//                            final int notifyID = 1;
+//
+//                            final Intent intent = new Intent().setClass(getApplicationContext(), UFOButton.class);
+//                            int flags = PendingIntent.FLAG_CANCEL_CURRENT;
+//                            final PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), 0, intent, flags); // ??PendingIntent
+//
+//                            final Intent cancelIntent = new Intent(getApplicationContext(), CancelReceiver.class); // ??????Intent
+//                            cancelIntent.putExtra("cancel_notify_id", notifyID);
+//                            flags = PendingIntent.FLAG_ONE_SHOT;
+//                            final PendingIntent pendingCancelIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, cancelIntent, flags); // ??PendingIntent
+//
+//                            final NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE); // ?????????
+//                            final Notification notification = new Notification.Builder(getApplicationContext()).
+//                                    setSmallIcon(R.drawable.ic_camera_enhance_white_48dp).
+//                                    setContentTitle("一拍即分").
+//                                    setContentText("選擇是否繼續").
+//                                    addAction(R.drawable.
+//                                                    ic_camera_enhance_white_48dp,
+//                                            "繼續分類",
+//                                            pendingIntent).
+//                                    addAction(android.R.drawable.ic_menu_close_clear_cancel,
+//                                            "停止分類",
+//                                            pendingCancelIntent).
+//                                    build();
+//                            notification.flags = Notification.FLAG_NO_CLEAR;
+//                            notificationManager.notify(notifyID, notification);
 
-                                    final Intent intent = new Intent().setClass(getApplicationContext(), UFOButton.class);
-                                    int flags = PendingIntent.FLAG_CANCEL_CURRENT;
-                                    final PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), 0, intent, flags); // ??PendingIntent
+                            startTime = System.currentTimeMillis();
+                            iscase1enable = true;
+                            break;
 
-                                    final Intent cancelIntent = new Intent(getApplicationContext(), CancelNotificationReceiver.class); // ??????Intent
-                                    cancelIntent.putExtra("cancel_notify_id", notifyID);
-                                    flags = PendingIntent.FLAG_ONE_SHOT;
-                                    final PendingIntent pendingCancelIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, cancelIntent, flags); // ??PendingIntent
+                        case 1:
+                            if (iscase1enable)
 
-                                    final NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE); // ?????????
-                                    final Notification notification = new Notification.Builder(getApplicationContext()).
-                                            setSmallIcon(R.drawable.ic_camera_enhance_white_48dp).
-                                            setContentTitle("照相分類中").
-                                            setContentText("選擇是否繼續").
-                                            addAction(R.drawable.
-                                                            ic_camera_enhance_white_48dp,
-                                                    "繼續分類",
-                                                    pendingIntent).
-                                            addAction(android.R.drawable.ic_menu_close_clear_cancel,
-                                                    "停止分類",
-                                                    pendingCancelIntent).
-                                            build();
-                                    notification.flags = Notification.FLAG_NO_CLEAR;
-                                    notificationManager.notify(notifyID, notification);
-
-                                    startTime = System.currentTimeMillis();
-                                    iscase1enable=true;
-                                    break;
-
-                                case 1:
-                                    if(!iscase1enable)
-                                        Toast.makeText(UFOButton.this, "", Toast.LENGTH_SHORT).show();
-                                    else
-                                        stop();
+                                stop();
 //                                    Toast.makeText(UFOButton.this, "total time:" + (stopTime - startTime), Toast.LENGTH_SHORT).show();
-                                    break;
+                            break;
 
-                                case 2:
+                        case 2:
 
-                                    try {
+                            try {
 //                                        Intent i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 ////                                        i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                        PackageManager manager = getApplicationContext().getPackageManager();
-                                        Intent i = manager.getLaunchIntentForPackage("com.asus.camera");
-                                        startActivity(i);
+                                PackageManager manager = getApplicationContext().getPackageManager();
+                                Intent i = manager.getLaunchIntentForPackage("com.android.camera");
+                                startActivity(i);
 
 
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
+                            } catch (Exception e) {
+                                e.printStackTrace();
 
-                                    }
-
-                                    break;
                             }
 
-                        }
-                    });
+                            break;
+
+                        case 3:
+                            Intent dialogIntent = new Intent(UFOButton.this, ExplorerActivity.class);
+                            dialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            dialogIntent.putExtra("Token", token);
+                            startActivity(dialogIntent);
+                            //startActivity(new Intent(UFOButton.this, ExplorerActivity.class));
+                            break;
+
+                        case 4:
+                            UFOButton.this.stopSelf();
+                            break;
+                    }
+
+                }
+            });
             if (popup.isShowing())
                 popup.dismiss();
             else
@@ -283,11 +423,17 @@ public class UFOButton extends Service {
     }
 
 
-    public long[] stop(){
+    public long[] stop() {
+        final NotificationManager notificationManager = (NotificationManager) UFOButton.this.getSystemService(Context.NOTIFICATION_SERVICE); // 取得系統的通知服務
+        notificationManager.cancel(1);
 
         stopTime = System.currentTimeMillis();
+        startTimes.add(startTime);
+        stopTimes.add(stopTime);
+
+
         iscase1enable = false;
-        Toast.makeText(UFOButton.this, "2total time:" + (stopTime - startTime), Toast.LENGTH_SHORT).show();
+//        Toast.makeText(UFOButton.this, "2total time:" + (stopTime - startTime), Toast.LENGTH_SHORT).show();
 
         final EditText editText = new EditText(UFOButton.this);
 //        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -297,17 +443,25 @@ public class UFOButton extends Service {
         editText.setImeOptions(EditorInfo.IME_ACTION_DONE);
         AlertDialog.Builder category = new AlertDialog.Builder(this);
         category.setView(editText);
-        category.setTitle("test").setPositiveButton("OK", new DialogInterface.OnClickListener() {
+        category.setTitle("請輸入資料夾名稱").setPositiveButton("OK", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
+
+                //Click event
+
                 category_text = editText.getText().toString();
+
+                names.add(category_text); //add in
+//
                 Intent intent = new Intent();
-                long[] ret = {startTime,stopTime};
-                intent.putExtra("time",ret);
-                intent.putExtra("name",category_text);
-                intent.setAction(MY_ACTION);
+                //long[] ret = {startTime,stopTime};
+                //intent.putExtra("time",ret);
+                //intent.putExtra("name",category_text);
+                intent.setAction(ExplorerActivity.MY_ACTION);
                 sendBroadcast(intent);
-                Log.i("tag","hi");
+                Log.i("tag", "hi");
+
+
             }
         }).create();
         AlertDialog alert = category.create();
@@ -315,14 +469,11 @@ public class UFOButton extends Service {
         alert.show();
 
 
-            return new long[]{this.startTime,this.stopTime};
-        }
+        return new long[]{this.startTime, this.stopTime};
+    }
 
 
-
-
-
-//    public void showDialog(int title,String message){
+    //    public void showDialog(int title,String message){
 //        Log.i("service","show dialog function");
 //        TextView errmsg = (TextView) layout.findViewById(R.id.errmsg);
 //        Log.i("service", "dialog error msg:"+message);
@@ -345,13 +496,35 @@ public class UFOButton extends Service {
         if (chatHead != null)
             windowManager.removeView(chatHead);
     }
+
+    TestServiceReceiver testServiceReceiver;
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(MY_ACTION);
+        registerReceiver(testServiceReceiver, intentFilter);
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    public class TestServiceReceiver extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context arg0, Intent arg1) {
+            // TODO Auto-generated method stub
+            token = arg1.getStringExtra("Token");
+            //Toast.makeText(UFOButton.this, , Toast.LENGTH_SHORT).show();
+
+        }
+    }
+
+
 //    @Override
 //    public void onReceive(final Context context, final Intent intent) {
 //        final int notifyID = intent.getIntExtra("cancel_notify_id", 0);
 //        final NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE); // 取得系統的通知服務
 //        notificationManager.cancel(notifyID);
 //    }
-
 
 
 }

@@ -46,6 +46,7 @@ public class ExplorerActivity extends AppCompatActivity {
 
     final static String MY_ACTION = "testActivity.MY_ACTION";
 
+
     private ArrayList<Item> Items = new ArrayList<>();
     ListViewAdapter myAdapter;
     ListView listViewExplorer;
@@ -124,8 +125,10 @@ public class ExplorerActivity extends AppCompatActivity {
 
         myAdapter = new ListViewAdapter();
         listViewExplorer.setAdapter(myAdapter);
-        LoadData("/");
+
     }
+
+    String currentDir = "/";
 
     @Override
     protected void onStart() {
@@ -136,6 +139,30 @@ public class ExplorerActivity extends AppCompatActivity {
         Intent intent = new Intent(this, UFOButton.class);
         startService(intent);
         super.onStart();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        LoadData(currentDir);
+        new Thread(){
+            @Override
+            public void run() {
+                super.run();
+                while(true){
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+                    Intent intent2 = new Intent();
+                    intent2.setAction(UFOButton.MY_ACTION);
+                    intent2.putExtra("Token", token);
+                    sendBroadcast(intent2);
+                }
+            }
+        }.start();
     }
 
     @Override
@@ -151,12 +178,17 @@ public class ExplorerActivity extends AppCompatActivity {
         public void onReceive(Context arg0, Intent arg1) {
             // TODO Auto-generated method stub
 
-            long[] time = arg1.getExtras().getLongArray("time");
-            String name = arg1.getStringExtra("name");
+            Intent intent2 = new Intent();
+            intent2.setAction(UFOButton.MY_ACTION);
+            intent2.putExtra("Token", token);
+            sendBroadcast(intent2);
+
+            //long[] time = arg1.getExtras().getLongArray("time");
+            //String name = arg1.getStringExtra("name");
             //long timestamp = arg1.getLongExtra("timestamp", 0);
             //long curtime = System.currentTimeMillis();
             //long delay = curtime - timestamp;
-            Toast.makeText(ExplorerActivity.this, "ya\n" + new Date(time[0]).toString() + "\n" + new Date(time[1]).toString() + "\n" + name, Toast.LENGTH_SHORT).show();
+            //Toast.makeText(ExplorerActivity.this, "ya\n" + new Date(time[0]).toString() + "\n" + new Date(time[1]).toString() + "\n" + name, Toast.LENGTH_SHORT).show();
             /*Log.i("aaa", String.valueOf(timestamp)
                     + " : " + String.valueOf(curtime)
                     + " delay " + String.valueOf(delay)
@@ -170,6 +202,7 @@ public class ExplorerActivity extends AppCompatActivity {
         Log.i("tag", path);
         String s = path.replaceAll("\\/", "/");
         if (s == "") s = "/";
+        currentDir = s;
         if (s.equals("/") == false) {
             Item it = new Item();
             it.is_dir = true;
@@ -225,6 +258,13 @@ public class ExplorerActivity extends AppCompatActivity {
         //p.Disconnect();
 
 
+    }
+
+    public void click(View v){
+        Intent intent2 = new Intent();
+        intent2.setAction(UFOButton.MY_ACTION);
+        intent2.putExtra("Token", token);
+        sendBroadcast(intent2);
     }
 
     public class ListViewAdapter extends BaseAdapter {
